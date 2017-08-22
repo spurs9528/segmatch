@@ -561,20 +561,30 @@ bool SegMatch::filterMatches(const PairwiseMatches& predicted_matches,
 void SegMatch::update(const std::vector<laser_slam::Trajectory>& trajectories) {
   Clock clock;
   CHECK_EQ(trajectories.size(), segmentation_poses_.size());
+  std::cout << "made it here1" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
   // Update the segmentation positions.
   for (size_t i = 0u; i < trajectories.size(); ++i) {
     for (auto& pose: segmentation_poses_[i]){
       pose.second = trajectories.at(i).at(pose.first);
     }
   }
+  std::cout << "made it here2" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
   // Update the source, target and clouds in the buffer.
   for (auto& source_cloud: segmented_source_clouds_) {
     source_cloud.second.updateSegments(trajectories);
   }
-  segmented_target_cloud_.updateSegments(trajectories);
+  std::cout << "made it here2.5" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
+  // segmented_target_cloud_.updateSegments(trajectories);
+  std::cout << "made it here2.75" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
   for (auto& segmented_cloud: target_queue_) {
     segmented_cloud.updateSegments(trajectories);
   }
+  std::cout << "made it here3" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
 
   // Update the last filtered matches.
   for (auto& match: last_filtered_matches_) {
@@ -590,6 +600,8 @@ void SegMatch::update(const std::vector<laser_slam::Trajectory>& trajectories) {
       match.centroids_.second = segment.centroid;
     }
   }
+  std::cout << "made it here4" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
 
   for (auto& match: last_predicted_matches_) {
     Segment segment;
@@ -602,6 +614,8 @@ void SegMatch::update(const std::vector<laser_slam::Trajectory>& trajectories) {
       match.centroids_.second = segment.centroid;
     }
   }
+  std::cout << "made it here5" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
 
   // Filter duplicates.
   LOG(INFO) << "Removing too near segments from target map.";
@@ -609,6 +623,8 @@ void SegMatch::update(const std::vector<laser_slam::Trajectory>& trajectories) {
                                5u);
 
   clock.takeTime();
+  std::cout << "made it here6" << std::endl;
+  LOG(INFO) << __FILE__ << " " << __LINE__;
   update_timings_.emplace(trajectories[0u].rbegin()->first, clock.getRealTime());
 }
 
