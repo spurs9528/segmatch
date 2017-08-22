@@ -205,6 +205,7 @@ Time findTimeOfClosestPose(const Trajectory& poses,
 bool SegMatch::filterMatches(const PairwiseMatches& predicted_matches,
                              PairwiseMatches* filtered_matches_ptr,
                              RelativePose* loop_closure,
+                             LocalizationCorr* localization_corr,
                              std::vector<PointICloudPair>* matched_segment_clouds,
                              unsigned int track_id,
                              laser_slam::Time timestamp_ns) {
@@ -356,138 +357,197 @@ bool SegMatch::filterMatches(const PairwiseMatches& predicted_matches,
     }
 
     // If desired, return the loop-closure.
-    if (loop_closure != NULL && !filtered_matches.empty()) {
-      LOG(INFO) << "Found a loop";
+    if ((loop_closure != NULL) || (localization_corr != NULL) && !filtered_matches.empty()) {
+      LOG(INFO) << "Found a loop/localization correction in map.";
 
-      loops_timestamps_.push_back(timestamp_ns);
-      laser_slam::Clock clock;
-      // Find the trajectory poses to be linked by the loop-closure.
-      // For each segment, find the timestamp of the closest segmentation pose.
-      std::vector<Time> source_segmentation_times;
-      std::vector<Time> target_segmentation_times;
-      std::vector<Id> source_track_ids;
-      std::vector<Id> target_track_ids;
-      std::vector<Segment> source_segments;
-      std::vector<Segment> target_segments;
-      for (const auto& match: filtered_matches) {
-        Segment segment;
-        CHECK(segmented_source_clouds_[track_id].findValidSegmentById(match.ids_.first, &segment));
-        source_segmentation_times.push_back(findTimeOfClosestSegmentationPose(segment));
-        source_segments.push_back(segment);
-        source_track_ids.push_back(segment.track_id);
-        LOG(INFO) << "Source Track id " << segment.track_id << " Source segment ID " << segment.segment_id;
+      LOG(WARNING) << "TRANSFORMATION!:" << std::endl << transformation << std::endl;
 
-        CHECK(segmented_target_cloud_.findValidSegmentById(match.ids_.second, &segment));
-        target_segmentation_times.push_back(findTimeOfClosestSegmentationPose(segment));
-        target_segments.push_back(segment);
-        target_track_ids.push_back(segment.track_id);
-        LOG(INFO) << "Target Track id " << segment.track_id << " Source segment ID " << segment.segment_id;
+      // Loop Closure Case
+      if (localization_corr == NULL)
+      {
+        loops_timestamps_.push_back(timestamp_ns);
+        laser_slam::Clock clock;
+        // Find the trajectory poses to be linked by the loop-closure.
+        // For each segment, find the timestamp of the closest segmentation pose.
+        std::vector<Time> source_segmentation_times;
+        std::vector<Time> target_segmentation_times;
+        std::vector<Id> source_track_ids;
+        std::vector<Id> target_track_ids;
+        std::vector<Segment> source_segments;
+        std::vector<Segment> target_segments;
+        for (const auto& match: filtered_matches) {
+          Segment segment;
+          CHECK(segmented_source_clouds_[track_id].findValidSegmentById(match.ids_.first, &segment));
+          source_segmentation_times.push_back(findTimeOfClosestSegmentationPose(segment));
+          source_segments.push_back(segment);
+          source_track_ids.push_back(segment.track_id);
+          LOG(INFO) << "Source Track id " << segment.track_id << " Source segment ID " << segment.segment_id;
+
+          CHECK(segmented_target_cloud_.findValidSegmentById(match.ids_.second, &segment));
+          target_segmentation_times.push_back(findTimeOfClosestSegmentationPose(segment));
+          target_segments.push_back(segment);
+          target_track_ids.push_back(segment.track_id);
+          LOG(INFO) << "Target Track id " << segment.track_id << " Source segment ID " << segment.segment_id;
+        }
+
+        const Id source_track_id = findMostOccuringId(source_track_ids);
+        const Id target_track_id = findMostOccuringId(target_track_ids);
+        LOG(INFO) << "source_track_id " << source_track_id << " target_track_id " <<
+            target_track_id;
+
+        const Time target_most_occuring_time = findMostOccuringTime(target_segmentation_times);
+
+        LOG(INFO) << "Finding source_track_time_ns and target_track_time_ns";
+        Time source_track_time_ns, target_track_time_ns;
+
+        // Multi robot SLAM case
+        if (source_track_id != target_track_id) {
+          // Get the head of the source trajectory.
+          Time trajectory_last_time_ns = segmentation_poses_[source_track_id].rbegin()->first;
+          Time start_time_of_head_ns;
+
+          if (trajectory_last_time_ns > params_.min_time_between_segment_for_matches_ns) {
+            start_time_of_head_ns = trajectory_last_time_ns - params_.min_time_between_segment_for_matches_ns;
+          } else {
+            start_time_of_head_ns = 0u;
+          }
+
+          LOG(INFO) << "start_time_of_head_ns " << start_time_of_head_ns;
+
+          Trajectory head_poses;
+
+          for (const auto pose: segmentation_poses_[source_track_id]) {
+            if (pose.first > start_time_of_head_ns) {
+              head_poses.emplace(pose.first, pose.second);
+            }
+          }
+
+          LOG(INFO) << "head_poses.size() " << head_poses.size();
+
+          // Get a window over the target trajectory.
+          const Time half_window_size_ns = 180000000000u;
+          const Time window_max_value_ns = target_most_occuring_time + half_window_size_ns;
+          Time window_min_value_ns;
+          if (target_most_occuring_time > half_window_size_ns) {
+            window_min_value_ns = target_most_occuring_time - half_window_size_ns;
+          } else {
+            window_min_value_ns = 0u;
+          }
+          Trajectory poses_in_window;
+          for (const auto& pose: segmentation_poses_[target_track_id]) {
+            if (pose.first >= window_min_value_ns &&
+                pose.first <=  window_max_value_ns) {
+
+              // Compute center of segments.
+              PclPoint segments_center;
+              for (const auto& segment: target_segments) {
+                segments_center.z += segment.centroid.z;
+              }
+              segments_center.z /= double(target_segments.size());
+
+              // Check that pose lies below the segments center of mass.
+              if (!params_.check_pose_lies_below_segments ||
+                  pose.second.getPosition()(2) < segments_center.z) {
+                poses_in_window.emplace(pose.first, pose.second);
+              }
+            }
+          }
+
+          source_track_time_ns =  findTimeOfClosestPose(head_poses,
+                                                        source_segments);
+          target_track_time_ns =  findTimeOfClosestPose(poses_in_window,
+                                                        target_segments);
+        } else {
+          // Split the trajectory into head and tail.
+          Time trajectory_last_time_ns = segmentation_poses_[source_track_id].rbegin()->first;
+          CHECK_GT(trajectory_last_time_ns, params_.min_time_between_segment_for_matches_ns);
+          Time start_time_of_head_ns = trajectory_last_time_ns -
+              params_.min_time_between_segment_for_matches_ns;
+
+          Trajectory tail_poses, head_poses;
+
+          for (const auto pose: segmentation_poses_[source_track_id]) {
+            if (pose.first < start_time_of_head_ns) {
+              tail_poses.emplace(pose.first, pose.second);
+            } else {
+              head_poses.emplace(pose.first, pose.second);
+            }
+          }
+
+          source_track_time_ns =  findTimeOfClosestPose(head_poses,
+                                                        source_segments);
+          target_track_time_ns =  findTimeOfClosestPose(tail_poses,
+                                                        target_segments);
+
+          LOG(INFO) << "Took " <<
+          clock.getRealTime() << " ms to find the LC pose times.";
+
+          LOG(INFO) << "source_track_time_ns " << source_track_time_ns;
+          LOG(INFO) << "target_track_time_ns " << target_track_time_ns;
+
+          loop_closure->time_a_ns = target_track_time_ns;
+          loop_closure->time_b_ns = source_track_time_ns;
+          loop_closure->track_id_a = target_track_id;
+          loop_closure->track_id_b = source_track_id;
+
+          SE3 w_T_a_b = fromApproximateTransformationMatrix(transformation);
+          loop_closure->T_a_b = w_T_a_b;
+
+          // Save the loop closure.
+          loop_closures_.push_back(*loop_closure);
+        }
       }
 
-      const Id source_track_id = findMostOccuringId(source_track_ids);
-      const Id target_track_id = findMostOccuringId(target_track_ids);
-      LOG(INFO) << "source_track_id " << source_track_id << " target_track_id " <<
-          target_track_id;
-
-      const Time target_most_occuring_time = findMostOccuringTime(target_segmentation_times);
-
-      LOG(INFO) << "Finding source_track_time_ns and target_track_time_ns";
-      Time source_track_time_ns, target_track_time_ns;
-      if (source_track_id != target_track_id) {
-        // Get the head of the source trajectory.
-        Time trajectory_last_time_ns = segmentation_poses_[source_track_id].rbegin()->first;
-        Time start_time_of_head_ns;
-
-        if (trajectory_last_time_ns > params_.min_time_between_segment_for_matches_ns) {
-          start_time_of_head_ns = trajectory_last_time_ns - params_.min_time_between_segment_for_matches_ns;
-        } else {
-          start_time_of_head_ns = 0u;
+      // Localization Case
+      else 
+      {
+        laser_slam::Clock clock;
+        // Find the trajectory poses to be linked by the loop-closure.
+        // For each segment, find the timestamp of the closest segmentation pose.
+        std::vector<Time> source_segmentation_times;
+        std::vector<Id> source_track_ids;
+        std::vector<Segment> source_segments;
+        for (const auto& match: filtered_matches) {
+          Segment segment;
+          CHECK(segmented_source_clouds_[track_id].findValidSegmentById(match.ids_.first, &segment));
+          source_segmentation_times.push_back(findTimeOfClosestSegmentationPose(segment));
+          source_segments.push_back(segment);
+          source_track_ids.push_back(segment.track_id);
+          LOG(INFO) << "Source Track id " << segment.track_id << " Source segment ID " << segment.segment_id;
         }
 
-        LOG(INFO) << "start_time_of_head_ns " << start_time_of_head_ns;
+        const Id source_track_id = findMostOccuringId(source_track_ids);
+        LOG(INFO) << "source_track_id " << source_track_id;
 
-        Trajectory head_poses;
+        LOG(INFO) << "Finding source_track_time_ns";
+        Time source_track_time_ns;
 
-        for (const auto pose: segmentation_poses_[source_track_id]) {
-          if (pose.first > start_time_of_head_ns) {
-            head_poses.emplace(pose.first, pose.second);
-          }
-        }
-
-        LOG(INFO) << "head_poses.size() " << head_poses.size();
-
-        // Get a window over the target trajectory.
-        const Time half_window_size_ns = 180000000000u;
-        const Time window_max_value_ns = target_most_occuring_time + half_window_size_ns;
-        Time window_min_value_ns;
-        if (target_most_occuring_time > half_window_size_ns) {
-          window_min_value_ns = target_most_occuring_time - half_window_size_ns;
-        } else {
-          window_min_value_ns = 0u;
-        }
-        Trajectory poses_in_window;
-        for (const auto& pose: segmentation_poses_[target_track_id]) {
-          if (pose.first >= window_min_value_ns &&
-              pose.first <=  window_max_value_ns) {
-
-            // Compute center of segments.
-            PclPoint segments_center;
-            for (const auto& segment: target_segments) {
-              segments_center.z += segment.centroid.z;
-            }
-            segments_center.z /= double(target_segments.size());
-
-            // Check that pose lies below the segments center of mass.
-            if (!params_.check_pose_lies_below_segments ||
-                pose.second.getPosition()(2) < segments_center.z) {
-              poses_in_window.emplace(pose.first, pose.second);
-            }
-          }
-        }
-
-        source_track_time_ns =  findTimeOfClosestPose(head_poses,
-                                                      source_segments);
-        target_track_time_ns =  findTimeOfClosestPose(poses_in_window,
-                                                      target_segments);
-      } else {
         // Split the trajectory into head and tail.
         Time trajectory_last_time_ns = segmentation_poses_[source_track_id].rbegin()->first;
         CHECK_GT(trajectory_last_time_ns, params_.min_time_between_segment_for_matches_ns);
         Time start_time_of_head_ns = trajectory_last_time_ns -
             params_.min_time_between_segment_for_matches_ns;
 
-        Trajectory tail_poses, head_poses;
+        Trajectory head_poses;
 
         for (const auto pose: segmentation_poses_[source_track_id]) {
-          if (pose.first < start_time_of_head_ns) {
-            tail_poses.emplace(pose.first, pose.second);
-          } else {
+          if (pose.first >= start_time_of_head_ns) {
             head_poses.emplace(pose.first, pose.second);
           }
         }
 
-        source_track_time_ns =  findTimeOfClosestPose(head_poses,
-                                                      source_segments);
-        target_track_time_ns =  findTimeOfClosestPose(tail_poses,
-                                                      target_segments);
+        source_track_time_ns =  findTimeOfClosestPose(head_poses, source_segments);
+
+        LOG(INFO) << "Took " <<
+        clock.getRealTime() << " ms to find the LC pose times.";
+
+        LOG(INFO) << "source_track_time_ns " << source_track_time_ns;
+
+        localization_corr->time_ns = source_track_time_ns;
+        localization_corr->track_id = source_track_id;
+        SE3 w_T_orig_corr = fromApproximateTransformationMatrix(transformation);
+        localization_corr->T_orig_corr = w_T_orig_corr;
       }
-
-      LOG(INFO) << "Took " <<
-          clock.getRealTime() << " ms to find the LC pose times.";
-
-      LOG(INFO) << "source_track_time_ns " << source_track_time_ns;
-      LOG(INFO) << "target_track_time_ns " << target_track_time_ns;
-
-      loop_closure->time_a_ns = target_track_time_ns;
-      loop_closure->time_b_ns = source_track_time_ns;
-      loop_closure->track_id_a = target_track_id;
-      loop_closure->track_id_b = source_track_id;
-
-      SE3 w_T_a_b = fromApproximateTransformationMatrix(transformation);
-      loop_closure->T_a_b = w_T_a_b;
-
-      // Save the loop closure.
-      loop_closures_.push_back(*loop_closure);
     }
 
     // Save a copy of the fitered matches.

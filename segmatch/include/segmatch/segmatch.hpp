@@ -75,6 +75,7 @@ class SegMatch {
   bool filterMatches(const PairwiseMatches& predicted_matches,
                      PairwiseMatches* filtered_matches_ptr,
                      laser_slam::RelativePose* loop_closure = NULL,
+                     laser_slam::LocalizationCorr* localization_corr = NULL,
                      std::vector<PointICloudPair>* matched_segment_clouds = NULL,
                      unsigned int track_id = 0u,
                      laser_slam::Time timestamp_ns = 0u);

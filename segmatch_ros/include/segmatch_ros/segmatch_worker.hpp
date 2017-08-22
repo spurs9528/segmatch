@@ -25,7 +25,8 @@ class SegMatchWorker {
   bool processSourceCloud(const segmatch::PointICloud& source_cloud,
                           const laser_slam::Pose& latest_pose,
                           unsigned int track_id = 0u,
-                          laser_slam::RelativePose* loop_closure = NULL);
+                          laser_slam::RelativePose* loop_closure = NULL,
+                          laser_slam::LocalizationCorr* localization_corr = NULL);
 
   void update(const laser_slam::Trajectory& trajectory);
 

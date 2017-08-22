@@ -78,12 +78,29 @@ void LaserMapper::segMatchThread() {
 
         // Process the source cloud.
         if (segmatch_worker_params_.localize) {
-          segmatch_worker_.processSourceCloud(source_cloud, current_pose);
+          LocalizationCorr localization_corr;
+          // If there is a loop closure.
+          if (segmatch_worker_.processSourceCloud(source_cloud, current_pose, 0u, NULL, &localization_corr)) {
+            
+            LOG(WARNING) << "Found localization! time_a_ns: " << localization_corr.time_ns << std::endl << localization_corr.T_orig_corr.getTransformationMatrix() << std::endl;
+
+            incremental_estimator_->processLocalization(localization_corr);
+
+            // Clear the local map if desired.
+            if (params_.clear_local_map_after_loop_closure) {
+              laser_slam_worker_->clearLocalMap();
+            }
+
+            // Update the Segmatch object.
+            Trajectory trajectory;
+            laser_slam_worker_->getTrajectory(&trajectory);
+            segmatch_worker_.update(trajectory);
+            LOG(INFO) << "SegMatchThread done localizing";
+          }
         } else {
           RelativePose loop_closure;
           // If there is a loop closure.
-          if (segmatch_worker_.processSourceCloud(source_cloud, current_pose, 0u,
-                                                  &loop_closure)) {
+          if (segmatch_worker_.processSourceCloud(source_cloud, current_pose, 0u, &loop_closure)) {
             LOG(INFO) << "Found loop closure! time_a_ns: " << loop_closure.time_a_ns <<
                 " time_b_ns: " << loop_closure.time_b_ns;
 
