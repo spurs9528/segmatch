@@ -46,7 +46,7 @@ class SegMatch {
 
   /// \brief Init SegMatch.
   void init(const SegMatchParams& params,
-            unsigned int num_tracks = 1u);
+            unsigned int num_tracks = 1u, bool localize = false);
 
   /// \brief Convenience function for setting part of the params.
   void setParams(const SegMatchParams& params);
@@ -191,6 +191,8 @@ class SegMatch {
   std::vector<laser_slam::RelativePose> loop_closures_;
 
   Eigen::Matrix4f last_transformation_;
+
+  bool localize_;
 
   // Timings.
   std::map<laser_slam::Time, double> segmentation_and_description_timings_;

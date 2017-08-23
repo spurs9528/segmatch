@@ -17,7 +17,7 @@ void SegMatchWorker::init(ros::NodeHandle& nh, const SegMatchWorkerParams& param
   num_tracks_ = num_tracks;
 
   // Initialize SegMatch.
-  segmatch_.init(params_.segmatch_params, num_tracks);
+  segmatch_.init(params_.segmatch_params, num_tracks, params_.localize);
 
   // Setup publishers.
   source_representation_pub_ = nh.advertise<sensor_msgs::PointCloud2>(
