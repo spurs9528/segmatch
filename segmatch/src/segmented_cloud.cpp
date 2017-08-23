@@ -468,29 +468,22 @@ void SegmentedCloud::setTrackId(unsigned int track_id) {
 }
 
 void SegmentedCloud::updateSegments(const std::vector<laser_slam::Trajectory>& trajectories) {
-  std::cout << "valid_segments_.size(): " << valid_segments_.size() << std::endl;
 
   int i = 1;
   for (auto& id_segment: valid_segments_) {
-    std::cout << "checking segment: " << i << std::endl;
-    LOG(INFO) << __FILE__ << " " << __LINE__;
     SE3 new_pose = trajectories.at(id_segment.second.track_id).at(id_segment.second.timestamp_ns);
 
-    LOG(INFO) << __FILE__ << " " << __LINE__;
     SE3 transformation = new_pose * id_segment.second.T_w_linkpose.inverse();
     // Transform the point cloud.
     transformPointCloud(transformation, &id_segment.second.point_cloud);
 
-  LOG(INFO) << __FILE__ << " " << __LINE__;
     // Transform the segment centroid.
     transformPclPoint(transformation, &id_segment.second.centroid);
 
-  LOG(INFO) << __FILE__ << " " << __LINE__;
     // Update the link pose.
     id_segment.second.T_w_linkpose = new_pose;
 
-  LOG(INFO) << __FILE__ << " " << __LINE__;
-  i++;
+    i++;
   }
 }
 

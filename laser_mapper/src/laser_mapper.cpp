@@ -94,10 +94,7 @@ void LaserMapper::segMatchThread() {
             // Update the Segmatch object.
             Trajectory trajectory;
             laser_slam_worker_->getTrajectory(&trajectory);
-            LOG(INFO) << "SegFault about to happen..." << std::endl;
-            LOG(INFO) << __FILE__ << " " << __LINE__;
             segmatch_worker_.update(trajectory);
-            LOG(INFO) << "NO SEGFAULT!" << std::endl;
             LOG(INFO) << "SegMatchThread done localizing";
           }
         } else {

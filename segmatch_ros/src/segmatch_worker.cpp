@@ -126,8 +126,8 @@ bool SegMatchWorker::processSourceCloud(const PointICloud& source_cloud,
       // Filter matches.
       clock.start();
       PairwiseMatches filtered_matches;
-      loop_closure_found = segmatch_.filterMatches(predicted_matches, &filtered_matches, 
-        loop_closure, localization_corr, NULL, track_id, 
+      loop_closure_found = segmatch_.filterMatches(predicted_matches, 
+        &filtered_matches, loop_closure, localization_corr, NULL, track_id,
         latest_pose.time_ns);
       LOG(INFO) << "Filtering matches took " << clock.takeRealTime() << " ms.";
       LOG(INFO) << "Number of matches after filtering: " << filtered_matches.size() << ".";
