@@ -1,6 +1,6 @@
 LaserMapper: { 
   world_frame: "map",
-  clear_local_map_after_loop_closure: false,
+  clear_local_map_after_loop_closure: true,
   
   publish_world_to_odom: true,
   tf_publication_rate_hz: 10,
@@ -16,9 +16,9 @@ LaserMapper: {
     use_odometry_information: true,
     
     odom_frame: "world",
-    sensor_frame: "velodyne",
+    sensor_frame: "velo_link",
     
-    assembled_cloud_sub_topic: "/velodyne_points",
+    assembled_cloud_sub_topic: "/kitti/velo/pointcloud",
     trajectory_pub_topic: "trajectory",
     odometry_trajectory_pub_topic: "odometry_trajectory",
     full_map_pub_topic: "full_map",

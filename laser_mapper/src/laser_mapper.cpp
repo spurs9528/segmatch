@@ -18,7 +18,7 @@ LaserMapper::LaserMapper(ros::NodeHandle& n) : nh_(n) {
 
   // Create an incremental estimator.
   std::shared_ptr<IncrementalEstimator> incremental_estimator(
-      new IncrementalEstimator(params_.online_estimator_params));
+      new IncrementalEstimator(n, params_.online_estimator_params));
   incremental_estimator_ = std::move(incremental_estimator);
 
   // Setup the laser_slam worker.
@@ -33,6 +33,8 @@ LaserMapper::LaserMapper(ros::NodeHandle& n) : nh_(n) {
 
   // Advertise the save_map service.
   save_map_ = nh_.advertiseService("save_map", &LaserMapper::saveMapServiceCall, this);
+
+  ROS_FATAL("READY!");
 }
 
 LaserMapper::~LaserMapper() {}

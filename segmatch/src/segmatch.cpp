@@ -548,6 +548,9 @@ bool SegMatch::filterMatches(const PairwiseMatches& predicted_matches,
         localization_corr->track_id = source_track_id;
         SE3 w_T_orig_corr = fromApproximateTransformationMatrix(transformation);
         localization_corr->T_orig_corr = w_T_orig_corr;
+
+        ROS_FATAL("DISPLAYING THE CORRECTION TRANSFORMATION!");
+        std::cout << w_T_orig_corr << std::endl;
       }
     }
 
@@ -573,8 +576,7 @@ void SegMatch::update(const std::vector<laser_slam::Trajectory>& trajectories) {
     source_cloud.second.updateSegments(trajectories);
   }
 
-  // Only update segments in the target cloud if doing loop closure, b/c in 
-  // localization the target map is not associated with the current trajectory
+  // Only update segments in the target cloud if doing loop closure, b/c in localization the target map is not associated
   if (!localize_){
     segmented_target_cloud_.updateSegments(trajectories);
   }

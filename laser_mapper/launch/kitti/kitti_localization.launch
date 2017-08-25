@@ -5,7 +5,7 @@
   <arg name="respawn_value" default="false" /> <!-- boolean: true, false -->
   
   <!-- Bag file path -->  
-  <arg name="bag_file" value="/mnt/Datasets/KITTI/SegMatch/2011_10_03_drive_27.bag"/>
+  <arg name="bag_file" value="/mnt/Datasets/KITTI/Raw/00_kitti_2011_10_03_drive_0027_synced_filtered.bag"/>
   <rosparam param="LaserMapper/bag_file" subst_value="True">$(arg bag_file)</rosparam>
 	
   <!-- Rviz visualization config file path -->
@@ -39,6 +39,6 @@
   </include>
   
   <!-- rosbag player node -->
-  <node name="player" pkg="rosbag" type="play" output="screen" args=" -r $(arg play_rate) -s 333 --clock --pause $(arg bag_file)"/>	
+  <node name="player" pkg="rosbag" type="play" output="screen" args=" -r $(arg play_rate) -s 338 --clock --pause $(arg bag_file)"/>	
 
 </launch>

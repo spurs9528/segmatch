@@ -238,12 +238,28 @@ void SegMatchWorker::publishSourceRepresentation() const {
 void SegMatchWorker::publishMatches() const {
   const PairwiseMatches matches = segmatch_.getFilteredMatches();
   PointPairs point_pairs;
+
+  ROS_WARN("Printing out matches...");
   for (size_t i = 0u; i < matches.size(); ++i) {
     PclPoint target_segment_centroid = matches[i].getCentroids().second;
     target_segment_centroid.z -= params_.distance_to_lower_target_cloud_for_viz_m;
     point_pairs.push_back(
         PointPair(matches[i].getCentroids().first, target_segment_centroid));
+
+    // TODO: maybe print out everything in the matches as well as the estimated correction transformations
+    // 
+    PclPoint src_segment_centroid = matches[i].getCentroids().first;
+    PclPoint target_segment_centroid_true = matches[i].getCentroids().second;
+
+    float delta_x = target_segment_centroid_true.x - src_segment_centroid.x;
+    float delta_y = target_segment_centroid_true.y - src_segment_centroid.y;
+    float delta_z = target_segment_centroid_true.z - src_segment_centroid.z;
+
+    LOG(WARNING) << "#" << i + 1 << ": dx: " << delta_x << " dy: " << delta_y << " dz: " << delta_z << " conf: " << matches[i].confidence_ << std::endl;
   }
+
+  ROS_WARN("Done printing out matches!");
+
   publishLineSet(point_pairs, params_.world_frame, params_.line_scale_matches,
                  Color(0.0, 1.0, 0.0), matches_pub_);
 
